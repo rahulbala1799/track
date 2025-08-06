@@ -6,8 +6,12 @@ function getOpenAIClient() {
   }
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: 60000, // 60 second timeout
-    maxRetries: 2, // Retry failed requests twice
+    timeout: 45000, // 45 second timeout (less than Vercel function timeout)
+    maxRetries: 1, // Reduce retries for serverless
+    baseURL: 'https://api.openai.com/v1', // Explicit base URL
+    defaultHeaders: {
+      'User-Agent': 'Receipt-Tracker/1.0',
+    },
   })
 }
 
@@ -31,8 +35,14 @@ export async function parseReceiptWithAI(imageBase64: string, mimeType: string =
     const openai = getOpenAIClient()
     
     console.log(`Attempting to analyze receipt with ${mimeType}, image size: ${Math.round(imageBase64.length * 0.75)} bytes`)
+    console.log('Environment check:', {
+      hasApiKey: !!process.env.OPENAI_API_KEY,
+      keyPrefix: process.env.OPENAI_API_KEY?.substring(0, 10) + '...',
+      nodeEnv: process.env.NODE_ENV,
+      vercelEnv: process.env.VERCEL_ENV
+    })
     
-    // Add timeout and retry logic
+    // Create the request with explicit error handling
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
