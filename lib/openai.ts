@@ -24,11 +24,11 @@ export interface ParsedReceipt {
   items: ParsedReceiptItem[]
 }
 
-export async function parseReceiptWithAI(imageBase64: string): Promise<ParsedReceipt> {
+export async function parseReceiptWithAI(imageBase64: string, mimeType: string = 'image/jpeg'): Promise<ParsedReceipt> {
   try {
     const openai = getOpenAIClient()
     const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "user",
@@ -38,15 +38,15 @@ export async function parseReceiptWithAI(imageBase64: string): Promise<ParsedRec
               text: `Analyze this receipt image and extract the following information in JSON format:
               {
                 "title": "Store/Restaurant name or description",
-                "totalAmount": "Total amount as number",
-                "currency": "Currency code (USD, EUR, etc.)",
-                "date": "Date in YYYY-MM-DD format",
+                "totalAmount": 0.00,
+                "currency": "USD",
+                "date": "2024-01-01",
                 "items": [
                   {
                     "name": "Item name",
-                    "quantity": "Quantity as number",
-                    "price": "Price per item as number",
-                    "category": "Food category (optional)"
+                    "quantity": 1,
+                    "price": 0.00,
+                    "category": "food"
                   }
                 ]
               }
@@ -59,18 +59,18 @@ export async function parseReceiptWithAI(imageBase64: string): Promise<ParsedRec
               - Use USD as default currency if not specified
               - For restaurant receipts, categorize items as 'food', 'drink', 'dessert', etc.
               - For grocery receipts, use categories like 'produce', 'dairy', 'meat', etc.
-              - Return only valid JSON, no additional text`
+              - Return ONLY valid JSON, no additional text or formatting`
             },
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`
+                url: `data:${mimeType};base64,${imageBase64}`
               }
             }
           ]
         }
       ],
-      max_tokens: 1000
+      max_tokens: 1500
     })
 
     const content = response.choices[0]?.message?.content
@@ -79,20 +79,41 @@ export async function parseReceiptWithAI(imageBase64: string): Promise<ParsedRec
     }
 
     try {
-      const parsedData = JSON.parse(content) as ParsedReceipt
+      // Clean the response content - remove any markdown formatting
+      let cleanContent = content.trim()
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/```json\n?/, '').replace(/\n?```$/, '')
+      }
+      if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/```\n?/, '').replace(/\n?```$/, '')
+      }
+
+      const parsedData = JSON.parse(cleanContent) as ParsedReceipt
       
       // Validate the parsed data
-      if (!parsedData.title || !parsedData.totalAmount || !parsedData.items) {
-        throw new Error('Invalid receipt data structure')
+      if (!parsedData.title || parsedData.totalAmount === undefined || !parsedData.items || !Array.isArray(parsedData.items)) {
+        throw new Error('Invalid receipt data structure from AI response')
       }
+
+      // Ensure all items have required fields
+      parsedData.items = parsedData.items.map(item => ({
+        name: item.name || 'Unknown Item',
+        quantity: typeof item.quantity === 'number' ? item.quantity : 1,
+        price: typeof item.price === 'number' ? item.price : 0,
+        category: item.category || 'general'
+      }))
 
       return parsedData
     } catch (parseError) {
       console.error('Error parsing OpenAI response:', parseError)
-      throw new Error('Failed to parse receipt data from AI response')
+      console.error('Raw response content:', content)
+      throw new Error(`Failed to parse receipt data from AI response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
     }
   } catch (error) {
     console.error('OpenAI API error:', error)
-    throw new Error('Failed to analyze receipt with AI')
+    if (error instanceof Error) {
+      throw new Error(`Failed to analyze receipt with AI: ${error.message}`)
+    }
+    throw new Error('Failed to analyze receipt with AI: Unknown error')
   }
 }

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const base64Image = buffer.toString('base64')
 
     // Parse receipt with OpenAI
-    const parsedReceipt = await parseReceiptWithAI(base64Image)
+    const parsedReceipt = await parseReceiptWithAI(base64Image, file.type)
 
     return NextResponse.json(parsedReceipt)
   } catch (error) {
