@@ -6,6 +6,8 @@ function getOpenAIClient() {
   }
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
+    timeout: 60000, // 60 second timeout
+    maxRetries: 2, // Retry failed requests twice
   })
 }
 
@@ -27,6 +29,10 @@ export interface ParsedReceipt {
 export async function parseReceiptWithAI(imageBase64: string, mimeType: string = 'image/jpeg'): Promise<ParsedReceipt> {
   try {
     const openai = getOpenAIClient()
+    
+    console.log(`Attempting to analyze receipt with ${mimeType}, image size: ${Math.round(imageBase64.length * 0.75)} bytes`)
+    
+    // Add timeout and retry logic
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -111,7 +117,21 @@ export async function parseReceiptWithAI(imageBase64: string, mimeType: string =
     }
   } catch (error) {
     console.error('OpenAI API error:', error)
+    
     if (error instanceof Error) {
+      // Handle specific OpenAI API errors
+      if (error.message.includes('Connection error') || error.message.includes('ECONNRESET') || error.message.includes('ETIMEDOUT')) {
+        throw new Error('Connection error: Unable to connect to OpenAI. Please check your internet connection and try again.')
+      }
+      if (error.message.includes('401') || error.message.includes('authentication')) {
+        throw new Error('Authentication error: Invalid OpenAI API key.')
+      }
+      if (error.message.includes('429')) {
+        throw new Error('Rate limit exceeded: Too many requests. Please wait a moment and try again.')
+      }
+      if (error.message.includes('400')) {
+        throw new Error('Invalid request: The image may be too large or corrupted.')
+      }
       throw new Error(`Failed to analyze receipt with AI: ${error.message}`)
     }
     throw new Error('Failed to analyze receipt with AI: Unknown error')

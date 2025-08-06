@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be an image' }, { status: 400 })
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File size too large. Max 10MB allowed.' }, { status: 400 })
+    // Validate file size (max 4MB for OpenAI Vision API)
+    if (file.size > 4 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size too large. Max 4MB allowed for AI processing.' }, { status: 400 })
     }
 
     // Convert image to base64
