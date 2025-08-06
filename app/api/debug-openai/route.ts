@@ -5,7 +5,6 @@ export async function GET() {
     // First, check if we can make any HTTP request at all
     const testResponse = await fetch('https://httpbin.org/json', {
       method: 'GET',
-      timeout: 10000,
     })
     
     if (!testResponse.ok) {
@@ -26,7 +25,6 @@ export async function GET() {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      timeout: 10000,
     })
 
     const result = await openaiResponse.json()
