@@ -1,8 +1,13 @@
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is required')
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
+}
 
 export interface ParsedReceiptItem {
   name: string
@@ -21,6 +26,7 @@ export interface ParsedReceipt {
 
 export async function parseReceiptWithAI(imageBase64: string): Promise<ParsedReceipt> {
   try {
+    const openai = getOpenAIClient()
     const response = await openai.chat.completions.create({
       model: "gpt-4-vision-preview",
       messages: [
